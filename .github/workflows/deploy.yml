@@ -1,0 +1,40 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main  # Triggers on push to main branch
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set Up Docker
+        run: |
+          docker --version
+
+      - name: Build Docker Image
+        run: |
+          docker build -t my-app:${{ github.sha }} .
+
+      - name: Login to Docker Hub
+        env:
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USER" --password-stdin
+
+      - name: Push Image to Docker Hub
+        run: |
+          docker tag my-app:${{ github.sha }} my-dockerhub-username/my-app:latest
+          docker push my-dockerhub-username/my-app:latest
+
+      - name: Deploy to Kubernetes
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          echo "$KUBE_CONFIG" | base64 --decode > kubeconfig
+          kubectl --kubeconfig=kubeconfig set image deployment/my-app my-app=my-dockerhub-username/my-app:latest
